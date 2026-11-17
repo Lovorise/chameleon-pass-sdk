@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<host-apdu-service xmlns:android="http://android.com"
+    android:description="@string/chameleon_hce_service_desc"
+    android:requireDeviceUnlock="true">
+    <aid-group
+        android:category="other"
+        android:description="@string/chameleon_hce_aid_desc">
+        <!-- MTCHSHIP Visual Clerk AID: F0 4D 54 43 48 53 48 49 50 -->
+        <aid-filter android:name="F04D54434853484950" />
+    </aid-group>
+</host-apdu-service>
