@@ -1,6 +1,8 @@
 // Copyright 2026 Lovorise Ltd
 // SPDX-License-Identifier: Apache-2.0
 
+import type { PassUiLabels } from './i18n.js';
+
 export type PassPreset =
   | 'CUSTOM'
   | 'SPORTS_STADIUM'
@@ -67,6 +69,8 @@ export interface ChameleonTransport {
 }
 
 export interface ChameleonThemeTokens {
+  /** 'auto' follows OS/device dark/light mode automatically (default: 'auto') */
+  colorScheme?: 'auto' | 'light' | 'dark';
   accentColor?: string;
   surfaceColor?: string;
   textColor?: string;
@@ -75,7 +79,6 @@ export interface ChameleonThemeTokens {
   borderRadius?: string;
   fontFamily?: string;
   monospaceFontFamily?: string;
-  darkMode?: boolean;
 }
 
 export interface ChameleonLayoutConfig {
@@ -164,11 +167,17 @@ export interface AutoContextResult {
   locale: string;
   dir: 'ltr' | 'rtl';
   countryCode: string;
+  colorScheme: 'light' | 'dark';
 }
 
 export interface ChameleonPassConfig {
   preset: PassPreset;
+  /** Defaults automatically to device language (navigator.languages / navigator.language) */
   locale?: string;
+  /** Optional custom dictionary overrides for any language */
+  labels?: Partial<PassUiLabels>;
+  /** Defaults automatically to OS dark/light preference ('auto') */
+  colorScheme?: 'auto' | 'light' | 'dark';
   storage?: ClientStoragePolicy;
   transport?: ChameleonTransport;
   passes: ChameleonPassPayload[];
@@ -188,5 +197,6 @@ export interface ChameleonPassSession {
   switchMode: (modeId: string) => void;
   updateStatus: (passIndex: number, status: PassStatus) => void;
   setLocale: (locale: string) => void;
+  setColorScheme: (scheme: 'auto' | 'light' | 'dark') => void;
   destroy: () => void;
 }
