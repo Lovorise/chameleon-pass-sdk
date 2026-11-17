@@ -1,0 +1,48 @@
+{
+  "name": "@mtchship/chameleon-pass-ui",
+  "version": "1.0.0",
+  "description": "Open-source, unbranded, RAM-only adaptive optical pass, ticket & handoff SDK for MTCHSHIP Visual Clerk.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "pass-sdk",
+    "ticketing",
+    "qr-code",
+    "aztec-code",
+    "pdf417",
+    "code128",
+    "ean13",
+    "datamatrix",
+    "nfc",
+    "byos",
+    "zero-custody",
+    "web-components",
+    "typescript"
+  ],
+  "author": "Lovorise Ltd",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com",
+    "directory": "web"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}
