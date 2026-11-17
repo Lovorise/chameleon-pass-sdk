@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="chameleon_hce_service_desc">MTCHSHIP Visual Clerk Optical &amp; NFC Credential Service</string>
+    <string name="chameleon_hce_aid_desc">MTCHSHIP Chameleon Handoff AID</string>
+</resources>
