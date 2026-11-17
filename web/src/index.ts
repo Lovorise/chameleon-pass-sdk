@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { renderOpticalSvg } from './barcode.js';
+import { detectDeviceLocale, resolveUiLabels } from './i18n.js';
 import { deriveRotatingStep } from './totp.js';
 import type {
   AutoContextResult,
@@ -12,6 +13,7 @@ import type {
   PassStatus,
 } from './types.js';
 
+export * from './i18n.js';
 export * from './types.js';
 
 const RTL_LOCALES = new Set(['ar', 'he', 'fa', 'ur']);
@@ -50,16 +52,23 @@ function escapeHtml(raw: string): string {
     .replaceAll("'", '&#39;');
 }
 
+export function detectDeviceColorScheme(): 'light' | 'dark' {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return 'light';
+}
+
 export async function resolveAutoContext(options?: {
   endpoint?: string;
   keyToken?: string;
 }): Promise<AutoContextResult> {
-  const navLang =
-    typeof navigator !== 'undefined' && navigator.language ? navigator.language : 'en-GB';
-  const baseLang = navLang.split('-')[0].toLowerCase();
+  const deviceLocale = detectDeviceLocale();
+  const baseLang = deviceLocale.split('-')[0].toLowerCase();
   const dir: 'ltr' | 'rtl' = RTL_LOCALES.has(baseLang) ? 'rtl' : 'ltr';
-  const regionPart = navLang.split('-')[1];
+  const regionPart = deviceLocale.split('-')[1];
   const countryCode = regionPart ? regionPart.toUpperCase() : 'GB';
+  const colorScheme = detectDeviceColorScheme();
 
   if (options?.endpoint && options?.keyToken) {
     try {
@@ -72,17 +81,18 @@ export async function resolveAutoContext(options?: {
       if (res.ok) {
         const data = (await res.json()) as Partial<AutoContextResult>;
         return {
-          locale: data.locale ?? navLang,
+          locale: data.locale ?? deviceLocale,
           dir: data.dir ?? dir,
           countryCode: data.countryCode ?? countryCode,
+          colorScheme: data.colorScheme ?? colorScheme,
         };
       }
     } catch {
-      // Fall back to local navigator context when offline or unreachable
+      // Fall back to local device context when offline or unreachable
     }
   }
 
-  return { locale: navLang, dir, countryCode };
+  return { locale: deviceLocale, dir, countryCode, colorScheme };
 }
 
 export function mountChameleonPass(
@@ -92,12 +102,28 @@ export function mountChameleonPass(
   const shadow = container.attachShadow({ mode: 'closed' });
   let activeIndex = 0;
   let activeModeId: string | null = null;
-  let activeLocale = config.locale ?? 'en-GB';
+  let activeLocale = config.locale ?? detectDeviceLocale();
+  let activeScheme: 'auto' | 'light' | 'dark' = config.colorScheme ?? 'auto';
   let destroyed = false;
   let timerId: number | null = null;
   let wakeLockSentinel: { release: () => Promise<void> } | null = null;
 
   const passes = config.passes;
+
+  const mediaQuery =
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-color-scheme: dark)')
+      : null;
+
+  const onSystemThemeChange = (): void => {
+    if (!destroyed && activeScheme === 'auto') {
+      void render();
+    }
+  };
+
+  if (mediaQuery) {
+    mediaQuery.addEventListener('change', onSystemThemeChange);
+  }
 
   if (config.keepScreenAwake !== false && typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
     const wl = (navigator as Navigator & {
@@ -125,6 +151,14 @@ export function mountChameleonPass(
     return RTL_LOCALES.has(base) ? 'rtl' : 'ltr';
   }
 
+  function resolveEffectiveTheme(pass: ChameleonPassPayload): 'light' | 'dark' {
+    const scheme = pass.theme?.colorScheme ?? activeScheme;
+    if (scheme === 'light' || scheme === 'dark') {
+      return scheme;
+    }
+    return detectDeviceColorScheme();
+  }
+
   async function render(): Promise<void> {
     if (destroyed || passes.length === 0) {
       return;
@@ -134,12 +168,16 @@ export function mountChameleonPass(
     const layout = pass.layout ?? {};
     const theme = pass.theme ?? {};
     const dir = resolveDir(pass);
+    const effectiveMode = resolveEffectiveTheme(pass);
+    const isDark = effectiveMode === 'dark';
+    const labels = resolveUiLabels(activeLocale, config.labels);
 
-    const accent = theme.accentColor ?? '#111827';
-    const surface = theme.surfaceColor ?? '#FFFFFF';
-    const text = theme.textColor ?? '#111827';
-    const muted = theme.mutedTextColor ?? '#4B5563';
-    const border = theme.borderColor ?? '#E5E7EB';
+    const accent = theme.accentColor ?? (isDark ? '#F9FAFB' : '#111827');
+    const accentForeground = isDark && !theme.accentColor ? '#111827' : '#FFFFFF';
+    const surface = theme.surfaceColor ?? (isDark ? '#111827' : '#FFFFFF');
+    const text = theme.textColor ?? (isDark ? '#F9FAFB' : '#111827');
+    const muted = theme.mutedTextColor ?? (isDark ? '#9CA3AF' : '#4B5563');
+    const border = theme.borderColor ?? (isDark ? '#374151' : '#E5E7EB');
     const radius = theme.borderRadius ?? '16px';
     const font = theme.fontFamily ?? 'system-ui, -apple-system, sans-serif';
     const monoFont = theme.monospaceFontFamily ?? 'ui-monospace, SFMono-Regular, monospace';
@@ -178,8 +216,10 @@ export function mountChameleonPass(
     }
 
     const invalidated = isInvalidatedStatus(pass.status);
+    const localizedStatus = labels.status[pass.status] ?? pass.status.toUpperCase();
+
     const opticalSvg = invalidated
-      ? `<div class="cp-invalid-box" role="status">${escapeHtml(pass.status.toUpperCase())}</div>`
+      ? `<div class="cp-invalid-box" role="status">${escapeHtml(localizedStatus)}</div>`
       : renderOpticalSvg(
           effectiveSymbology,
           effectiveBytes,
@@ -206,7 +246,7 @@ export function mountChameleonPass(
                 layout.showStatusPill === false
                   ? ''
                   : `<span class="cp-status cp-status-${escapeHtml(pass.status)}">${escapeHtml(
-                      pass.status.toUpperCase()
+                      localizedStatus
                     )}</span>`
               }
             </div>
@@ -238,57 +278,12 @@ export function mountChameleonPass(
         : `<section class="cp-holder">
             ${
               pass.holder.fullName
-                ? `<div><span class="cp-lbl">HOLDER</span><div class="cp-val">${escapeHtml(
-                    pass.holder.fullName
-                  )}</div></div>`
+                ? `<div><span class="cp-lbl">${escapeHtml(
+                    labels.holder
+                  )}</span><div class="cp-val">${escapeHtml(pass.holder.fullName)}</div></div>`
                 : ''
             }
             ${
               pass.holder.tierValue
                 ? `<div><span class="cp-lbl">${escapeHtml(
-                    pass.holder.tierLabel ?? 'CLASS'
-                  )}</span><div class="cp-val">${escapeHtml(pass.holder.tierValue)}</div></div>`
-                : ''
-            }
-          </section>`;
-
-    const wayfindingHtml =
-      layout.showWayfinding === false || effectiveWayfinding.length === 0
-        ? ''
-        : `<section class="cp-grid" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr));">
-            ${effectiveWayfinding
-              .map(
-                (slot) =>
-                  `<div class="cp-cell ${slot.emphasize ? 'cp-cell-emph' : ''}">
-                    <span class="cp-lbl">${escapeHtml(slot.label)}</span>
-                    <strong class="cp-cell-val">${escapeHtml(slot.value)}</strong>
-                  </div>`
-              )
-              .join('')}
-          </section>`;
-
-    const modesHtml =
-      pass.modes && pass.modes.length > 0
-        ? `<div class="cp-modes" role="tablist">
-            <button type="button" class="cp-mode-btn ${
-              activeModeId === null ? 'is-active' : ''
-            }" data-mode="">Primary</button>
-            ${pass.modes
-              .map(
-                (m) =>
-                  `<button type="button" class="cp-mode-btn ${
-                    activeModeId === m.id ? 'is-active' : ''
-                  }" data-mode="${escapeHtml(m.id)}">${escapeHtml(m.label)}</button>`
-              )
-              .join('')}
-          </div>`
-        : '';
-
-    const actionsHtml =
-      pass.actions && pass.actions.length > 0
-        ? `<div class="cp-actions">
-            ${pass.actions
-              .map(
-                (a) =>
-                  `<button type="button" class="cp-act-btn cp-act-${escapeHtml(
-                    a.variant ?? 'secondary'
+                    pass.holder.tierLabel ?? labels.defaultTier
