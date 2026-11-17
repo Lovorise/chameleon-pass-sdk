@@ -236,7 +236,7 @@ object ChameleonI18n {
     fun detectDeviceLocale(): String {
         val locales = LocaleListCompat.getAdjustedDefault()
         if (!locales.isEmpty) {
-            locales?.toLanguageTag()?.takeIf { it.isNotBlank() }?.let { return it }
+            locales.toLanguageTag().takeIf { it.isNotBlank() }?.let { return it }
         }
         return Locale.getDefault().toLanguageTag().ifBlank { "en" }
     }
